@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Music Player</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #progressBar::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #progressBar::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #volumeBar::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #volumeBar::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .track-item:hover {
+            background-color: #e5e7eb;
+            transition: background-color 0.3s;
+        }
+        .album-art {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #6b7280, #1f2937);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+    <div id="player" class="bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full">
+        <h2 class="text-2xl font-bold text-center mb-6">Pro Music Player</h2>
+        <div class="album-art mb-6 rounded-lg">No Album Art</div>
+        <div class="mb-4">
+            <input type="file" id="fileInput" accept="audio/*" multiple class="hidden">
+            <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg w-full">
+                <i class="fas fa-folder-open mr-2"></i>Choose Audio Files
+            </button>
+        </div>
+        <div id="trackList" class="max-h-40 overflow-y-auto mb-6 rounded-lg bg-gray-700 p-2"></div>
+        <div id="currentTrack" class="text-lg font-semibold text-center mb-4 truncate">No track selected</div>
+        <audio id="audioPlayer"></audio>
+        <div class="mb-4">
+            <input type="range" id="progressBar" value="0" max="100" step="0.1" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-sm mt-2">
+                <span id="currentTime">0:00</span>
+                <span id="duration">0:00</span>
+            </div>
+        </div>
+        <div class="flex items-center justify-between mb-4">
+            <label for="volumeBar" class="text-sm mr-2"><i class="fas fa-volume-up"></i></label>
+            <input type="range" id="volumeBar" value="100" max="100" step="1" class="w-24 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+        </div>
+        <div class="flex justify-center space-x-4">
+            <button onclick="toggleShuffle()" id="shuffleBtn" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full" title="Shuffle">
+                <i class="fas fa-random"></i>
+            </button>
+            <button onclick="previousTrack()" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full" title="Previous">
+                <i class="fas fa-step-backward"></i>
+            </button>
+            <button onclick="playAudio()" id="playBtn" class="bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full" title="Play">
+                <i class="fas fa-play"></i>
+            </button>
+            <button onclick="pauseAudio()" id="pauseBtn" class="bg-gray-700 hover:bg-gray-600 text-white p-4 rounded-full hidden" title="Pause">
+                <i class="fas fa-pause"></i>
+            </button>
+            <button onclick="stopAudio()" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full" title="Stop">
+                <i class="fas fa-stop"></i>
+            </button>
+            <button onclick="nextTrack()" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full" title="Next">
+                <i class="fas fa-step-forward"></i>
+            </button>
+            <button onclick="toggleRepeat()" id="repeatBtn" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full" title="Repeat">
+                <i class="fas fa-redo"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const trackList = document.getElementById('trackList');
+        const currentTrackDisplay = document.getElementById('currentTrack');
+        const progressBar = document.getElementById('progressBar');
+        const volumeBar = document.getElementById('volumeBar');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const repeatBtn = document.getElementById('repeatBtn');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const currentTimeDisplay = document.getElementById('currentTime');
+        const durationDisplay = document.getElementById('duration');
+        let tracks = [];
+        let currentTrackIndex = -1;
+        let isShuffling = false;
+        let isRepeating = false;
+        let playedTracks = [];
+
+        // Load files and populate track list
+        fileInput.addEventListener('change', () => {
+            const files = Array.from(fileInput.files);
+            if (files.length > 0) {
+                loadFiles(files);
+            } else {
+                alert('No files selected. Please choose audio files to play.');
+            }
+        });
+
+        function loadFiles(files) {
+            tracks = files;
+            trackList.innerHTML = '';
+            tracks.forEach((track, index) => {
+                const trackItem = document.createElement('div');
+                trackItem.className = 'track-item p-2 cursor-pointer rounded-lg';
+                trackItem.textContent = track.name;
+                trackItem.onclick = () => playTrack(index);
+                trackList.appendChild(trackItem);
+            });
+            if (tracks.length > 0) {
+                playTrack(0); // Auto-play first track
+            }
+        }
+
+        // Play a specific track
+        function playTrack(index) {
+            if (index < 0 || index >= tracks.length) return;
+            currentTrackIndex = index;
+            playedTracks.push(index);
+            const track = tracks[index];
+            audioPlayer.src = URL.createObjectURL(track);
+            audioPlayer.play();
+            currentTrackDisplay.textContent = track.name;
+            playBtn.classList.add('hidden');
+            pauseBtn.classList.remove('hidden');
+            updateProgress();
+        }
+
+        // Play audio
+        function playAudio() {
+            if (currentTrackIndex >= 0) {
+                audioPlayer.play();
+                playBtn.classList.add('hidden');
+                pauseBtn.classList.remove('hidden');
+            }
+        }
+
+        // Pause audio
+        function pauseAudio() {
+            audioPlayer.pause();
+            playBtn.classList.remove('hidden');
+            pauseBtn.classList.add('hidden');
+        }
+
+        // Stop audio
+        function stopAudio() {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+            progressBar.value = 0;
+            currentTimeDisplay.textContent = '0:00';
+            playBtn.classList.remove('hidden');
+            pauseBtn.classList.add('hidden');
+        }
+
+        // Play previous track
+        function previousTrack() {
+            if (currentTrackIndex > 0) {
+                playTrack(currentTrackIndex - 1);
+            }
+        }
+
+        // Play next track
+        function nextTrack() {
+            if (isShuffling) {
+                let nextIndex;
+                do {
+                    nextIndex = Math.floor(Math.random() * tracks.length);
+                } while (playedTracks.includes(nextIndex) && playedTracks.length < tracks.length);
+                if (playedTracks.length >= tracks.length) {
+                    playedTracks = []; // Reset played tracks when all have been played
+                }
+                playTrack(nextIndex);
+            } else if (currentTrackIndex < tracks.length - 1) {
+                playTrack(currentTrackIndex + 1);
+            } else if (isRepeating) {
+                playTrack(0);
+            }
+        }
+
+        // Toggle shuffle
+        function toggleShuffle() {
+            isShuffling = !isShuffling;
+            shuffleBtn.classList.toggle('bg-blue-600', isShuffling);
+            shuffleBtn.classList.toggle('bg-gray-700', !isShuffling);
+            playedTracks = [];
+        }
+
+        // Toggle repeat
+        function toggleRepeat() {
+            isRepeating = !isRepeating;
+            repeatBtn.classList.toggle('bg-blue-600', isRepeating);
+            repeatBtn.classList.toggle('bg-gray-700', !isRepeating);
+            audioPlayer.loop = isRepeating;
+        }
+
+        // Update progress bar
+        audioPlayer.ontimeupdate = () => {
+            if (audioPlayer.duration) {
+                const current = audioPlayer.currentTime;
+                const duration = audioPlayer.duration;
+                progressBar.value = (current / duration) * 100;
+                currentTimeDisplay.textContent = formatTime(current);
+                durationDisplay.textContent = formatTime(duration);
+            }
+        };
+
+        // Seek track
+        progressBar.oninput = () => {
+            if (audioPlayer.duration) {
+                audioPlayer.currentTime = (progressBar.value / 100) * audioPlayer.duration;
+            }
+        };
+
+        // Volume control
+        volumeBar.oninput = () => {
+            audioPlayer.volume = volumeBar.value / 100;
+        };
+
+        // Auto-play next track when current ends
+        audioPlayer.onended = () => {
+            if (!isRepeating) {
+                nextTrack();
+            }
+        };
+
+        // Format time in mm:ss
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            seconds = Math.floor(seconds % 60);
+            return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+    </script>
+</body>
+</html>
